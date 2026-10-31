@@ -1,0 +1,2047 @@
+<!DOCTYPE html>
+<html lang="en" class="dark h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Unfollower Tracker</title>
+  <!-- Android Web App Specs -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="application-name" content="Unfollower Tracker">
+  <meta name="theme-color" content="#000000">
+  <!-- Dependencies -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            pixel: ['"Press Start 2P"', 'monospace'],
+            vt: ['"VT323"', 'monospace']
+          },
+          colors: {
+            pixelPink: '#ff007f',
+            pixelCyan: '#00f0ff',
+            pixelYellow: '#ffe600',
+            pixelGreen: '#39ff14',
+            darkcard: '#0a0a0c'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    html, body {
+      height: 100%;
+      height: 100dvh;
+      width: 100%;
+      overflow-x: hidden;
+      overscroll-behavior-y: contain;
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      background-color: #000000;
+      color: #f1f5f9;
+      font-family: 'VT323', monospace;
+    }
+    .font-pixel-heading {
+      font-family: 'Press Start 2P', cursive;
+    }
+    .pixel-btn {
+      position: relative;
+      box-shadow: 0 4px 0 #111118;
+      transition: all 0.05s ease;
+      touch-action: manipulation;
+    }
+    .pixel-btn:active {
+      transform: translateY(3px);
+      box-shadow: 0 1px 0 #111118;
+    }
+    .scanlines {
+      background: linear-gradient(
+        rgba(18, 16, 16, 0) 50%,
+        rgba(0, 0, 0, 0.25) 50%
+      ), linear-gradient(
+        90deg,
+        rgba(255, 0, 0, 0.03),
+        rgba(0, 255, 0, 0.01),
+        rgba(0, 0, 255, 0.03)
+      );
+      background-size: 100% 4px, 6px 100%;
+      pointer-events: none;
+    }
+    /* --- MONOCHROME WHITE & GLASSMORPHISM SETTINGS OVERRIDES --- */
+    #openSettingsBtn {
+      color: #ffffff !important;
+      border-color: #ffffff !important;
+      background: rgba(0, 0, 0, 0.8) !important;
+    }
+    .white-settings-modal {
+      border: 2px solid rgba(255, 255, 255, 0.8) !important;
+      background: rgba(10, 10, 12, 0.92) !important;
+      backdrop-filter: blur(12px) !important;
+      box-shadow: 0 0 25px rgba(255, 255, 255, 0.15) !important;
+    }
+    .white-settings-modal *, .white-settings-modal h2, .white-settings-modal span, .white-settings-modal label {
+      color: #ffffff !important;
+    }
+    .white-setting-btn {
+      background: rgba(255, 255, 255, 0.06) !important;
+      border: 1px solid rgba(255, 255, 255, 0.35) !important;
+      color: #ffffff !important;
+      transition: all 0.15s ease !important;
+    }
+    .white-setting-btn:hover {
+      background: rgba(255, 255, 255, 0.2) !important;
+      border-color: #ffffff !important;
+    }
+    /* Transparent GIF Widget Container */
+    .gif-circle-widget {
+      width: 4rem;
+      height: 4rem;
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: fixed;
+      touch-action: none;
+      user-select: none;
+      z-index: 45;
+    }
+    .gif-circle-widget img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      pointer-events: none;
+    }
+    .remove-white-bg {
+      filter: url(#removeWhiteFilter) !important;
+    }
+    .gif-circle-widget.edit-mode-active {
+      border: 2px dashed #ffffff !important;
+      background-color: rgba(255, 255, 255, 0.12) !important;
+      cursor: move;
+      z-index: 60 !important;
+    }
+    .resize-handle {
+      position: absolute;
+      right: -6px;
+      bottom: -6px;
+      width: 16px;
+      height: 16px;
+      background-color: #ffffff;
+      border: 2px solid #000000;
+      box-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
+      cursor: se-resize;
+      touch-action: none;
+      border-radius: 9999px;
+      z-index: 70;
+    }
+    .delete-gif-btn {
+      position: absolute;
+      left: -8px;
+      top: -8px;
+      width: 18px;
+      height: 18px;
+      background-color: #ffffff;
+      color: #000000;
+      border: 1px solid #000000;
+      border-radius: 9999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: bold;
+      cursor: pointer;
+      z-index: 75;
+      box-shadow: 0 0 6px rgba(255, 255, 255, 0.8);
+    }
+    /* Subdued Video Glow Reflections */
+    #videoGlowWrapper {
+      transition: box-shadow 0.3s ease-out;
+      will-change: box-shadow;
+    }
+    #videoLightBloom {
+      transition: background 0.3s ease-out;
+      will-change: background;
+    }
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #000000;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #ffffff;
+      border: 2px solid #000;
+    }
+
+    /* --- HYPER PIXEL INTRO ANIMATION STYLES --- */
+    #introOverlay {
+      transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      will-change: opacity, background-color;
+    }
+    /* CREATIVE 10-SECOND JOEL ANIMATION KEYFRAMES */
+    .joel-letter-anim {
+      display: inline-block;
+      opacity: 0;
+      transform: scale(0) rotate(-360deg);
+      text-shadow: 6px 6px 0px #000, -3px -3px 0px #000, 3px -3px 0px #000, -3px 3px 0px #000;
+      transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.2s ease;
+      will-change: transform, opacity, filter;
+    }
+    /* 3D Spin & Zoom Pop Entry */
+    .joel-letter-spin {
+      animation: joelSpinPop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+    @keyframes joelSpinPop {
+      0% { transform: scale(0) rotate(-720deg) translateY(-80px); opacity: 0; filter: drop-shadow(0 0 0px #000); }
+      70% { transform: scale(1.35) rotate(20deg) translateY(10px); opacity: 1; filter: drop-shadow(0 0 25px currentColor); }
+      100% { transform: scale(1) rotate(0deg) translateY(0); opacity: 1; filter: drop-shadow(0 0 12px currentColor); }
+    }
+    /* Retro Chromatic Glitch Wave */
+    .joel-letter-glitch {
+      opacity: 1 !important;
+      animation: joelGlitchWave 0.35s ease-in-out infinite alternate !important;
+    }
+    @keyframes joelGlitchWave {
+      0% { opacity: 1; transform: translate(0, 0) scale(1) skew(0deg); }
+      25% { opacity: 1; transform: translate(-6px, 4px) scale(1.1) skew(-5deg); filter: drop-shadow(6px -3px 0px #ff007f); }
+      50% { opacity: 1; transform: translate(6px, -4px) scale(0.95) skew(5deg); filter: drop-shadow(-6px 3px 0px #00f0ff); }
+      75% { opacity: 1; transform: translate(-3px, -4px) scale(1.05) skew(-2deg); filter: drop-shadow(3px 3px 0px #ffe600); }
+      100% { opacity: 1; transform: translate(4px, 3px) scale(1) skew(3deg); filter: drop-shadow(-4px -3px 0px #39ff14); }
+    }
+    /* Dynamic Floating Pixel Physics */
+    .joel-letter-float {
+      opacity: 1 !important;
+      animation: joelFloatMotion 2s ease-in-out infinite alternate !important;
+    }
+    @keyframes joelFloatMotion {
+      0% { opacity: 1; transform: translateY(0px) rotate(0deg) scale(1); filter: drop-shadow(0 0 15px currentColor); }
+      50% { opacity: 1; transform: translateY(-18px) rotate(4deg) scale(1.08); filter: drop-shadow(0 15px 25px currentColor); }
+      100% { opacity: 1; transform: translateY(0px) rotate(-4deg) scale(0.98); filter: drop-shadow(0 0 15px currentColor); }
+    }
+    /* Rainbow Waving Animation */
+    .rainbow-wave-container {
+      display: inline-flex;
+      gap: 2px;
+    }
+    .rainbow-wave-char {
+      display: inline-block;
+      font-family: 'Press Start 2P', cursive;
+      animation: waveMotion 0.8s ease-in-out infinite alternate, rainbowCycle 2s linear infinite;
+      text-shadow: 3px 3px 0px #000;
+    }
+    @keyframes waveMotion {
+      0% { transform: translateY(0px); }
+      100% { transform: translateY(-16px); }
+    }
+    @keyframes rainbowCycle {
+      0% { color: #ff007f; filter: drop-shadow(0 0 6px #ff007f); }
+      20% { color: #00f0ff; filter: drop-shadow(0 0 6px #00f0ff); }
+      40% { color: #ffe600; filter: drop-shadow(0 0 6px #ffe600); }
+      60% { color: #39ff14; filter: drop-shadow(0 0 6px #39ff14); }
+      80% { color: #b026ff; filter: drop-shadow(0 0 6px #b026ff); }
+      100% { color: #ff007f; filter: drop-shadow(0 0 6px #ff007f); }
+    }
+    /* Jumping Text Animation */
+    .pixel-jump-text {
+      display: inline-block;
+      animation: pixelBounce 0.45s cubic-bezier(0.28, 0.84, 0.42, 1) infinite alternate;
+      text-shadow: 4px 4px 0px #000, -2px -2px 0px #000, 2px -2px 0px #000;
+    }
+    @keyframes pixelBounce {
+      0% { transform: translateY(0) scaleY(1); }
+      60% { transform: translateY(-18px) scaleY(1.05); }
+      100% { transform: translateY(-24px) scaleY(0.95); }
+    }
+    /* Retro Pixel Progress Bar */
+    .pixel-progress-outer {
+      border: 4px solid #ffffff;
+      box-shadow: 0 0 0 4px #000000, 0 0 20px rgba(0, 240, 255, 0.4);
+      background: #0a0a0c;
+    }
+    .pixel-progress-inner {
+      background: linear-gradient(90deg, #ff007f, #ffe600, #39ff14, #00f0ff);
+      background-size: 200% 100%;
+      animation: gradientShift 1s linear infinite;
+      box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.3);
+    }
+    @keyframes gradientShift {
+      0% { background-position: 0% 50%; }
+      100% { background-position: 100% 50%; }
+    }
+  </style>
+</head>
+<body class="bg-black text-slate-100 min-h-screen min-h-[100dvh] flex flex-col selection:bg-white selection:text-black relative pb-6">
+  <div id="saveErrorBanner" class="hidden fixed top-0 left-0 right-0 z-[999] bg-red-600 text-white text-center py-2 font-vt text-base" style="padding-top: calc(0.5rem + env(safe-area-inset-top));">
+    ⚠ Failed to save data — storage may be full or blocked
+  </div>
+  <svg width="0" height="0" class="absolute hidden" aria-hidden="true">
+    <defs>
+      <filter id="removeWhiteFilter" color-interpolation-filters="sRGB">
+        <feColorMatrix type="matrix" values="
+          1 0 0 0 0
+          0 1 0 0 0
+          0 0 1 0 0
+          -1.15 -1.15 -1.15 3.15 0" />
+      </filter>
+    </defs>
+  </svg>
+
+  <!-- Custom Dynamic Background Layer -->
+  <div id="customBgContainer" class="fixed inset-0 z-0 overflow-hidden pointer-events-none hidden">
+    <img id="bgImage" class="w-full h-full object-cover hidden" alt="Custom App Background">
+    <video id="bgVideo" loop muted playsinline webkit-playsinline class="w-full h-full object-cover hidden"></video>
+    <div class="absolute inset-0 bg-black/50"></div>
+  </div>
+
+  <!-- Scanlines -->
+  <div class="fixed inset-0 scanlines z-30 pointer-events-none opacity-40"></div>
+
+  <!-- GIF Overlay Layer -->
+  <div id="gifOverlayContainer" class="fixed inset-0 pointer-events-none z-40 overflow-hidden"></div>
+
+  <!-- GIF Edit Bar -->
+  <div id="gifEditFloatingBar" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-white text-black border-2 border-black px-4 py-2.5 font-pixel-heading text-[10px] shadow-2xl flex items-center gap-3 hidden animate-bounce">
+    <i data-lucide="move" class="w-4 h-4"></i>
+    <span>DRAG & RESIZE GIFS</span>
+    <button id="finishGifEditBtn" class="px-2.5 py-1 bg-black text-white border border-white hover:bg-slate-900 pixel-btn">
+      DONE
+    </button>
+  </div>
+
+  <!-- Floating Settings Gear Button -->
+  <button id="openSettingsBtn" class="fixed top-4 right-4 z-40 p-2.5 bg-black/80 hover:bg-slate-900 text-white border-2 border-white pixel-btn transition-colors backdrop-blur-md">
+    <i data-lucide="settings" class="w-5 h-5"></i>
+  </button>
+
+  <!-- Settings Overlay Modal (Monochrome Clean White Theme) -->
+  <div id="settingsModal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="white-settings-modal max-w-lg w-full p-5 space-y-4 shadow-2xl relative max-h-[90vh] overflow-y-auto rounded-lg">
+      <div class="flex items-center justify-between border-b border-white/20 pb-3 sticky top-0 bg-black/90 z-10 backdrop-blur-md">
+        <h2 class="font-pixel-heading text-xs text-white flex items-center gap-2">
+          <i data-lucide="sliders" class="w-4 h-4 text-white"></i> APP SETTINGS
+        </h2>
+        <button id="closeSettingsBtn" class="p-1 text-slate-400 hover:text-white border border-white/40 hover:border-white pixel-btn">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4 font-vt text-sm">
+        <div class="space-y-2">
+          <span class="font-pixel-heading text-[10px] text-white/70">DISPLAY & AUDIO</span>
+          <div class="grid grid-cols-2 gap-2">
+            <button id="modalReplayIntroBtn" class="white-setting-btn px-3 py-2 font-pixel-heading text-[9px] pixel-btn flex items-center justify-center gap-1.5">
+              <i data-lucide="play-circle" class="w-3.5 h-3.5"></i> <span>REPLAY INTRO</span>
+            </button>
+            <button id="modalSfxBtn" class="white-setting-btn px-3 py-2 font-pixel-heading text-[9px] pixel-btn flex items-center justify-center gap-1.5">
+              <i data-lucide="volume-2" class="w-3.5 h-3.5"></i> <span id="modalSfxText">SFX: ON</span>
+            </button>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <button id="modalResetBtn" class="white-setting-btn col-span-2 px-3 py-2 font-pixel-heading text-[9px] pixel-btn flex items-center justify-center gap-1.5 border-red-400/50 hover:border-red-400">
+              <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 text-red-400"></i> RESET DATA
+            </button>
+          </div>
+        </div>
+
+        <hr class="border-white/20">
+
+        <div class="space-y-2">
+          <span class="font-pixel-heading text-[10px] text-white/70">CUSTOM MAIN BACKGROUND</span>
+          <div class="flex items-center gap-2 pt-1">
+            <label for="customBgInput" class="white-setting-btn flex-grow px-3 py-2 text-white font-pixel-heading text-[9px] cursor-pointer pixel-btn flex items-center justify-center gap-2">
+              <i data-lucide="image" class="w-3.5 h-3.5"></i> UPLOAD BACKGROUND
+            </label>
+            <input type="file" id="customBgInput" accept="image/*,video/*" class="hidden">
+            <button id="resetBgBtn" class="white-setting-btn px-3 py-2 border-red-500/50 font-pixel-heading text-[9px] pixel-btn flex items-center justify-center gap-1">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5 text-red-400"></i>
+            </button>
+          </div>
+        </div>
+
+        <hr class="border-white/20">
+
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="font-pixel-heading text-[10px] text-white">MOVING GIFS</span>
+            <button id="clearAllGifsBtn" class="text-[9px] font-pixel-heading text-red-400 hover:text-white underline cursor-pointer">
+              CLEAR ALL
+            </button>
+          </div>
+          <div class="flex items-center justify-between bg-black/60 border border-white/20 p-2.5 rounded">
+            <span class="font-pixel-heading text-[9px] text-white flex items-center gap-1.5">
+              <i data-lucide="wand-2" class="w-3.5 h-3.5"></i> AUTO REMOVE WHITE BG
+            </span>
+            <button id="toggleWhiteFilterBtn" class="px-2.5 py-1 bg-white text-black font-pixel-heading text-[8px] pixel-btn">
+              ON
+            </button>
+          </div>
+          <label for="multiGifInput" class="white-setting-btn w-full py-3 font-pixel-heading text-[10px] cursor-pointer pixel-btn flex items-center justify-center gap-2 shadow-lg">
+            <i data-lucide="plus-circle" class="w-4 h-4"></i> UPLOAD GIFS
+          </label>
+          <input type="file" id="multiGifInput" accept="image/gif,image/*" multiple class="hidden">
+          <button id="enterGifEditModeBtn" class="w-full py-2.5 bg-white text-black border-2 border-white font-pixel-heading text-[10px] pixel-btn flex items-center justify-center gap-2 hover:bg-slate-200">
+            <i data-lucide="move" class="w-4 h-4"></i> ENTER DRAG & RESIZE MODE
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FULLSCREEN EXCITING HYPER PIXEL INTRO OVERLAY -->
+  <div id="introOverlay" class="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center p-4 overflow-hidden select-none">
+    <!-- Skip Button -->
+    <button id="skipIntroBtn" class="absolute top-6 right-6 z-[110] px-3.5 py-1.5 bg-black/80 text-white border-2 border-white font-pixel-heading text-[9px] pixel-btn hover:bg-white hover:text-black transition-colors">
+      SKIP ▶▶
+    </button>
+
+    <!-- Stage 1: Progress Level Bar (3 Seconds) -->
+    <div id="introLoadingStage" class="w-full max-w-md flex flex-col items-center text-center space-y-5">
+      <div class="flex items-center justify-between w-full font-pixel-heading text-[11px] text-pixelCyan px-1">
+        <span class="flex items-center gap-2">
+          <i data-lucide="cpu" class="w-4 h-4 text-pixelPink animate-spin"></i> INITIALIZING ENGINE...
+        </span>
+        <span id="introProgressPercent" class="text-pixelYellow">0%</span>
+      </div>
+      <!-- Pixel Progress Bar Outer -->
+      <div class="w-full h-8 pixel-progress-outer p-1 relative">
+        <div id="introProgressBar" class="h-full pixel-progress-inner w-0 transition-all ease-linear"></div>
+      </div>
+      <p id="introLoadingStatus" class="font-pixel-heading text-[9px] text-slate-400">LOADING SOUND MODULES...</p>
+    </div>
+
+    <!-- Stage 2: 10-SECOND CREATIVE PIXEL JOEL ANIMATION STAGE -->
+    <div id="introAnimStage" class="hidden flex flex-col items-center justify-center text-center w-full max-w-4xl space-y-8">
+      <!-- Rainbow Pixel Waving WELCOME Container -->
+      <div id="introWelcomeBox" class="opacity-0 transition-opacity duration-300 transform -translate-y-4">
+        <div id="introRainbowWelcome" class="rainbow-wave-container font-pixel-heading text-xl sm:text-3xl md:text-5xl tracking-wider">
+          <!-- Dynamic Wave Letters Injected Here -->
+        </div>
+      </div>
+
+      <!-- Center Animated J O E L Container -->
+      <div id="introJoelBox" class="flex items-center justify-center gap-3 sm:gap-5 md:gap-8 font-pixel-heading text-6xl sm:text-8xl md:text-9xl tracking-tight my-2">
+        <span id="letter-J" class="joel-letter-anim text-pixelPink">J</span>
+        <span id="letter-O" class="joel-letter-anim text-pixelCyan">O</span>
+        <span id="letter-E" class="joel-letter-anim text-pixelYellow">E</span>
+        <span id="letter-L" class="joel-letter-anim text-pixelGreen">L</span>
+      </div>
+
+      <!-- Jumping "UNFOLLOWER TRACKER" Subtitle -->
+      <div id="introSubtitleBox" class="opacity-0 transition-opacity duration-300">
+        <h2 class="font-pixel-heading text-sm sm:text-lg md:text-2xl text-white pixel-jump-text tracking-widest text-pixelYellow">
+          UNFOLLOWER TRACKER
+        </h2>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Container -->
+  <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col z-10">
+    <!-- Section 1: Upload & Subdued Light Video Section -->
+    <section id="uploadSection" class="my-auto py-2 flex flex-col items-center justify-center space-y-8">
+      <div class="max-w-xl w-full text-center space-y-6">
+        <!-- Seamless File Drop Zone -->
+        <div id="dropzone" class="border-2 border-dashed border-slate-700 hover:border-white bg-black/60 backdrop-blur-md p-6 sm:p-8 cursor-pointer flex flex-col items-center justify-center relative group transition-all rounded-2xl">
+          <input type="file" id="fileInput" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" multiple accept=".zip,.json">
+          <div class="p-3 bg-slate-900 border border-slate-700 text-white group-hover:border-white group-hover:scale-110 transition-all mb-3 rounded-xl">
+            <i data-lucide="upload-cloud" class="w-8 h-8"></i>
+          </div>
+          <h3 class="text-sm font-pixel-heading text-slate-200 mb-3">
+            DROP <span class="text-pixelPink">.ZIP</span> OR <span class="text-pixelCyan">.JSON</span>
+          </h3>
+          <button class="px-5 py-2 bg-white text-black font-pixel-heading text-[10px] border border-white pixel-btn pointer-events-none">
+            CHOOSE FILES
+          </button>
+        </div>
+
+        <!-- Video Frame with Soft Subdued Glow -->
+        <div class="relative w-full my-6 flex flex-col items-center">
+          <!-- Soft Backlight Reflection Layer -->
+          <div id="videoLightBloom" class="absolute -inset-3 rounded-2xl blur-xl opacity-40 pointer-events-none"></div>
+          <!-- Video Box -->
+          <div id="videoGlowWrapper" class="relative w-full rounded-2xl overflow-hidden bg-black z-10 flex flex-col items-center">
+            <video id="promoVideo" loop muted playsinline webkit-playsinline crossorigin="anonymous" preload="auto" controls class="w-full aspect-video object-cover block bg-black">
+              <source id="videoSource" src="video.mp4" type="video/mp4">
+              Your browser does not support HTML video playback.
+            </video>
+            <!-- Cleaned Video Toolbar -->
+            <div class="w-full bg-black/90 backdrop-blur-md p-2.5 flex flex-wrap items-center justify-between gap-2 text-xs font-vt border-t border-slate-800">
+              <button id="manualPlayBtn" class="px-2.5 py-1 bg-white text-black font-pixel-heading text-[9px] pixel-btn flex items-center gap-1">
+                <i data-lucide="play" class="w-3 h-3"></i> PLAY
+              </button>
+              <div class="flex items-center gap-2">
+                <select id="videoHistorySelect" class="bg-black border border-slate-700 text-pixelYellow text-[10px] px-2 py-1 focus:outline-none focus:border-white cursor-pointer hidden font-pixel-heading">
+                  <option value="default">VIDEO HISTORY</option>
+                </select>
+                <label for="customVideoInput" class="px-2 py-1 bg-slate-900 border border-slate-700 text-slate-200 hover:text-white font-pixel-heading text-[9px] cursor-pointer pixel-btn flex items-center gap-1">
+                  <i data-lucide="file-video" class="w-3 h-3"></i> UPLOAD VIDEO
+                </label>
+                <input type="file" id="customVideoInput" accept="video/*" class="hidden">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 2: Loading State -->
+    <section id="loadingSection" class="hidden my-auto py-16 flex flex-col items-center justify-center text-center space-y-6">
+      <div class="relative flex items-center justify-center">
+        <div class="w-16 h-16 border-4 border-slate-800 border-t-white rounded-none animate-spin"></div>
+      </div>
+      <div class="space-y-2">
+        <h3 id="loadingTitle" class="text-sm font-pixel-heading text-pixelYellow">PROCESSING DATA...</h3>
+        <p id="loadingSubtitle" class="text-sm text-slate-400"></p>
+      </div>
+    </section>
+
+    <!-- Section 3: Error View -->
+    <section id="errorSection" class="hidden my-auto py-12 flex flex-col items-center justify-center text-center space-y-4 max-w-lg mx-auto">
+      <div class="p-4 bg-red-950/40 border-2 border-red-500 text-red-400">
+        <i data-lucide="alert-triangle" class="w-10 h-10"></i>
+      </div>
+      <h3 class="text-xs font-pixel-heading text-red-400">PARSING ERROR</h3>
+      <p id="errorMessage" class="text-sm text-slate-300"></p>
+      <button id="errorTryAgainBtn" class="px-5 py-2.5 bg-slate-900 border-2 border-slate-700 text-white font-pixel-heading text-[10px] pixel-btn">
+        TRY AGAIN
+      </button>
+    </section>
+
+    <!-- Section 4: Main Dashboard View -->
+    <section id="dashboardSection" class="hidden space-y-6 flex-grow">
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div class="bg-darkcard/90 backdrop-blur-sm border-2 border-slate-800 p-4 flex flex-col justify-between">
+          <span class="text-xs text-slate-400 font-pixel-heading flex items-center justify-between text-[10px]">
+            FOLLOWERS <i data-lucide="users" class="w-4 h-4 text-pixelCyan"></i>
+          </span>
+          <span id="metricFollowers" class="text-3xl font-pixel-heading text-white mt-3">0</span>
+        </div>
+        <div class="bg-darkcard/90 backdrop-blur-sm border-2 border-slate-800 p-4 flex flex-col justify-between">
+          <span class="text-xs text-slate-400 font-pixel-heading flex items-center justify-between text-[10px]">
+            FOLLOWING <i data-lucide="user-plus" class="w-4 h-4 text-pixelYellow"></i>
+          </span>
+          <span id="metricFollowing" class="text-3xl font-pixel-heading text-white mt-3">0</span>
+        </div>
+        <div class="bg-darkcard/90 backdrop-blur-sm border-2 border-pixelPink/60 p-4 flex flex-col justify-between">
+          <span class="text-xs text-pixelPink font-pixel-heading flex items-center justify-between text-[10px]">
+            NO FOLLOW BACK <i data-lucide="user-x" class="w-4 h-4 text-pixelPink"></i>
+          </span>
+          <span id="metricNotFollowingBack" class="text-3xl font-pixel-heading text-pixelPink mt-3">0</span>
+        </div>
+        <div class="bg-darkcard/90 backdrop-blur-sm border-2 border-slate-800 p-4 flex flex-col justify-between">
+          <span class="text-xs text-slate-400 font-pixel-heading flex items-center justify-between text-[10px]">
+            I DON'T FOLLOW <i data-lucide="user-minus" class="w-4 h-4 text-pixelYellow"></i>
+          </span>
+          <span id="metricIDontFollowBack" class="text-3xl font-pixel-heading text-pixelYellow mt-3">0</span>
+        </div>
+        <div class="bg-darkcard/90 backdrop-blur-sm border-2 border-slate-800 p-4 flex flex-col justify-between col-span-2 md:col-span-1">
+          <span class="text-xs text-slate-400 font-pixel-heading flex items-center justify-between text-[10px]">
+            MUTUALS <i data-lucide="user-check" class="w-4 h-4 text-pixelGreen"></i>
+          </span>
+          <span id="metricMutual" class="text-3xl font-pixel-heading text-pixelGreen mt-3">0</span>
+        </div>
+      </div>
+
+      <div class="bg-darkcard/90 backdrop-blur-sm border-2 border-slate-800 p-4 space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b-2 border-slate-800 pb-4">
+          <div class="flex flex-wrap gap-2 text-xs font-pixel-heading" id="tabGroup">
+            <button data-tab="notFollowingBack" class="tab-btn px-3 py-2 bg-pixelPink text-black font-pixel-heading text-[10px] pixel-btn">
+              NOT FOLLOWING BACK (<span id="countTabNotFollowingBack">0</span>)
+            </button>
+            <button data-tab="iDontFollowBack" class="tab-btn px-3 py-2 bg-slate-900 text-slate-400 hover:text-white text-[10px] border border-slate-700 pixel-btn">
+              I DON'T FOLLOW BACK (<span id="countTabIDontFollowBack">0</span>)
+            </button>
+            <button data-tab="mutual" class="tab-btn px-3 py-2 bg-slate-900 text-slate-400 hover:text-white text-[10px] border border-slate-700 pixel-btn">
+              MUTUALS (<span id="countTabMutual">0</span>)
+            </button>
+            <button data-tab="following" class="tab-btn px-3 py-2 bg-slate-900 text-slate-400 hover:text-white text-[10px] border border-slate-700 pixel-btn">
+              ALL FOLLOWING (<span id="countTabFollowing">0</span>)
+            </button>
+            <button data-tab="followers" class="tab-btn px-3 py-2 bg-slate-900 text-slate-400 hover:text-white text-[10px] border border-slate-700 pixel-btn">
+              ALL FOLLOWERS (<span id="countTabFollowers">0</span>)
+            </button>
+          </div>
+          <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+            <button id="copyUsernamesBtn" class="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-pixelCyan border border-pixelCyan text-xs font-pixel-heading text-[10px] pixel-btn flex items-center gap-1.5">
+              <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+              <span id="copyBtnText">COPY NAMES</span>
+            </button>
+            <button id="exportCsvBtn" class="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-pixelGreen border border-pixelGreen text-xs font-pixel-heading text-[10px] pixel-btn flex items-center gap-1.5">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i> EXPORT CSV
+            </button>
+          </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div class="relative w-full sm:w-80">
+            <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"></i>
+            <input type="text" id="searchInput" placeholder="Search usernames..." class="w-full pl-9 pr-4 py-2 bg-black border-2 border-slate-800 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-white">
+          </div>
+          <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+            <span class="text-xs text-slate-400 uppercase font-pixel-heading text-[10px]">SORT:</span>
+            <select id="sortSelect" class="bg-black border-2 border-slate-800 px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-white cursor-pointer">
+              <option value="alpha-asc">Alphabetical (A - Z)</option>
+              <option value="alpha-desc">Alphabetical (Z - A)</option>
+              <option value="time-desc">Newest First (if available)</option>
+              <option value="time-asc">Oldest First (if available)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-darkcard/90 backdrop-blur-sm border-2 border-slate-800 overflow-hidden">
+        <div id="resultsList" class="divide-y-2 divide-slate-900 max-h-[550px] overflow-y-auto"></div>
+        <div id="emptyResultsState" class="hidden p-12 text-center space-y-3">
+          <i data-lucide="ghost" class="w-10 h-10 text-slate-600 mx-auto"></i>
+          <p class="text-sm font-pixel-heading text-slate-300">NO MATCHES FOUND</p>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between text-xs text-slate-400 px-1 font-vt text-sm">
+        <span id="resultsCountSummary">Showing 0 accounts</span>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    /**
+     * Ambient Subdued Video Glow Engine
+     */
+    const glowCanvas = document.createElement('canvas');
+    const glowCtx = glowCanvas.getContext('2d', { willReadFrequently: true });
+    glowCanvas.width = 8;
+    glowCanvas.height = 8;
+
+    function startAmbientVideoGlowEngine() {
+      const video = document.getElementById('promoVideo');
+      const bgVideo = document.getElementById('bgVideo');
+      const glowBloom = document.getElementById('videoLightBloom');
+      const videoWrapper = document.getElementById('videoGlowWrapper');
+
+      let lastSampleTime = 0;
+      const SAMPLE_INTERVAL = 80;
+
+      function sampleAndApplyGlow(timestamp) {
+        requestAnimationFrame(sampleAndApplyGlow);
+        if (timestamp - lastSampleTime < SAMPLE_INTERVAL) return;
+        lastSampleTime = timestamp;
+
+        const targetVideo = (bgVideo && !bgVideo.classList.contains('hidden')) ? bgVideo : video;
+
+        if (targetVideo && !targetVideo.paused && !targetVideo.ended && targetVideo.readyState >= 2) {
+          try {
+            glowCtx.drawImage(targetVideo, 0, 0, 8, 8);
+            const imgData = glowCtx.getImageData(0, 0, 8, 8).data;
+            let r = 0, g = 0, b = 0;
+            const pixelCount = 64;
+            for (let i = 0; i < imgData.length; i += 4) {
+              r += imgData[i];
+              g += imgData[i + 1];
+              b += imgData[i + 2];
+            }
+            r = Math.min(255, Math.floor((r / pixelCount) * 1.1));
+            g = Math.min(255, Math.floor((g / pixelCount) * 1.1));
+            b = Math.min(255, Math.floor((b / pixelCount) * 1.1));
+
+            const glowStr = `rgba(${r}, ${g}, ${b}, 0.35)`;
+            const outerGlowStr = `rgba(${r}, ${g}, ${b}, 0.15)`;
+
+            if (glowBloom) {
+              glowBloom.style.background = `radial-gradient(circle, ${glowStr} 0%, ${outerGlowStr} 70%, transparent 100%)`;
+            }
+            if (videoWrapper) {
+              videoWrapper.style.boxShadow = `0 4px 20px 2px ${glowStr}`;
+            }
+          } catch (e) {}
+        }
+      }
+      requestAnimationFrame(sampleAndApplyGlow);
+    }
+
+    const DB_NAME = 'JoelUnfollowerDB';
+    const DB_VERSION = 7;
+
+    function openIndexedDB() {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        request.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains('appState')) db.createObjectStore('appState');
+          if (!db.objectStoreNames.contains('videoHistory')) db.createObjectStore('videoHistory', { keyPath: 'id', autoIncrement: true });
+          if (!db.objectStoreNames.contains('customBgStore')) db.createObjectStore('customBgStore');
+          if (!db.objectStoreNames.contains('uiSessionStore')) db.createObjectStore('uiSessionStore');
+          if (!db.objectStoreNames.contains('gifWidgetStore')) db.createObjectStore('gifWidgetStore', { keyPath: 'id' });
+        };
+        request.onsuccess = (e) => resolve(e.target.result);
+        request.onerror = (e) => reject(e.target.error);
+      });
+    }
+
+    async function saveParsedStateToDB(followersList, followingList) {
+      try {
+        const db = await openIndexedDB();
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction('appState', 'readwrite');
+          tx.objectStore('appState').put({
+            followers: followersList,
+            following: followingList,
+            timestamp: Date.now()
+          }, 'dataState');
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+          tx.onabort = () => reject(tx.error);
+        });
+        AppState.lastSaveOk = true;
+        return true;
+      } catch (err) {
+        AppState.lastSaveOk = false;
+        console.error('Save failed:', err);
+        showSaveError();
+        return false;
+      }
+    }
+
+    function showSaveError() {
+      const el = document.getElementById('saveErrorBanner');
+      if (el) {
+        el.classList.remove('hidden');
+        clearTimeout(showSaveError._t);
+        showSaveError._t = setTimeout(() => el.classList.add('hidden'), 4000);
+      }
+    }
+
+    // Re-flush current in-memory data to IndexedDB whenever the app is
+    // backgrounded or the WebView is about to be paused/killed by Android.
+    // This closes the gap where data only saved once, right after upload.
+    async function flushStateIfNeeded() {
+      if (AppState.followersMap.size === 0 && AppState.followingMap.size === 0) return;
+      await saveParsedStateToDB(
+        Array.from(AppState.followersMap.values()),
+        Array.from(AppState.followingMap.values())
+      );
+      await saveFullUISessionSnapshot();
+    }
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') flushStateIfNeeded();
+    });
+    window.addEventListener('pagehide', flushStateIfNeeded);
+    window.addEventListener('blur', flushStateIfNeeded);
+
+    async function saveFullUISessionSnapshot() {
+      try {
+        const db = await openIndexedDB();
+        const tx = db.transaction('uiSessionStore', 'readwrite');
+        const video = document.getElementById('promoVideo');
+        const resultsList = document.getElementById('resultsList');
+
+        const snapshot = {
+          activeTab: AppState.activeTab,
+          searchQuery: AppState.searchQuery,
+          sortBy: AppState.sortBy,
+          scrollPos: resultsList ? resultsList.scrollTop : 0,
+          videoTime: video ? video.currentTime : 0,
+          whiteFilterEnabled: AppState.whiteFilterEnabled,
+          lastActiveTime: Date.now()
+        };
+        tx.objectStore('uiSessionStore').put(snapshot, 'currentSnapshot');
+        localStorage.setItem('joel_app_session_light', JSON.stringify(snapshot));
+      } catch (e) {}
+    }
+
+    async function loadFullUISessionSnapshot() {
+      try {
+        const db = await openIndexedDB();
+        return new Promise((resolve) => {
+          const tx = db.transaction('uiSessionStore', 'readonly');
+          const req = tx.objectStore('uiSessionStore').get('currentSnapshot');
+          req.onsuccess = () => resolve(req.result || JSON.parse(localStorage.getItem('joel_app_session_light') || 'null'));
+          req.onerror = () => resolve(null);
+        });
+      } catch (err) { return null; }
+    }
+
+    async function loadParsedStateFromDB() {
+      try {
+        const db = await openIndexedDB();
+        return new Promise((resolve) => {
+          const tx = db.transaction('appState', 'readonly');
+          const req = tx.objectStore('appState').get('dataState');
+          req.onsuccess = () => resolve(req.result || null);
+          req.onerror = () => resolve(null);
+        });
+      } catch (err) { return null; }
+    }
+
+    async function clearParsedStateFromDB() {
+      try {
+        const db = await openIndexedDB();
+        const tx = db.transaction('appState', 'readwrite');
+        tx.objectStore('appState').delete('dataState');
+        tx.objectStore('uiSessionStore').delete('currentSnapshot');
+        localStorage.removeItem('joel_app_session_light');
+      } catch (err) {}
+    }
+
+    async function saveGifRecordToDB(id, blob, transformData = null) {
+      try {
+        const db = await openIndexedDB();
+        const tx = db.transaction('gifWidgetStore', 'readwrite');
+        const store = tx.objectStore('gifWidgetStore');
+        const req = store.get(id);
+        req.onsuccess = () => {
+          const existing = req.result || {};
+          store.put({
+            id: id,
+            blob: blob !== undefined ? blob : existing.blob,
+            transform: transformData !== null ? transformData : (existing.transform || null),
+            timestamp: Date.now()
+          });
+        };
+      } catch (err) {}
+    }
+
+    async function loadAllGifsFromDB() {
+      try {
+        const db = await openIndexedDB();
+        return new Promise((resolve) => {
+          const tx = db.transaction('gifWidgetStore', 'readonly');
+          const req = tx.objectStore('gifWidgetStore').getAll();
+          req.onsuccess = () => resolve(req.result || []);
+          req.onerror = () => resolve([]);
+        });
+      } catch (err) { return []; }
+    }
+
+    async function removeGifRecordFromDB(id) {
+      try {
+        const db = await openIndexedDB();
+        const tx = db.transaction('gifWidgetStore', 'readwrite');
+        tx.objectStore('gifWidgetStore').delete(id);
+      } catch (err) {}
+    }
+
+    async function clearAllGifsFromDB() {
+      try {
+        const db = await openIndexedDB();
+        const tx = db.transaction('gifWidgetStore', 'readwrite');
+        tx.objectStore('gifWidgetStore').clear();
+      } catch (err) {}
+    }
+
+    const gifWidgetObjectURLs = new Map();
+    let isGifEditMode = false;
+
+    function createOrUpdateGifWidget(id, blob, transform = null) {
+      const container = document.getElementById('gifOverlayContainer');
+      if (!container) return;
+
+      let widget = document.getElementById(`gifWidget-${id}`);
+      if (!widget) {
+        widget = document.createElement('div');
+        widget.id = `gifWidget-${id}`;
+        widget.className = 'gif-circle-widget';
+
+        const img = document.createElement('img');
+        img.alt = "Transparent GIF";
+
+        const resizeHandle = document.createElement('div');
+        resizeHandle.className = 'resize-handle hidden';
+
+        const deleteBtn = document.createElement('div');
+        deleteBtn.className = 'delete-gif-btn hidden';
+        deleteBtn.textContent = '✕';
+        deleteBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          await removeGifRecordFromDB(id);
+          if (gifWidgetObjectURLs.has(id)) {
+            URL.revokeObjectURL(gifWidgetObjectURLs.get(id));
+            gifWidgetObjectURLs.delete(id);
+          }
+          widget.remove();
+        });
+
+        widget.appendChild(deleteBtn);
+        widget.appendChild(img);
+        widget.appendChild(resizeHandle);
+        container.appendChild(widget);
+
+        initDragAndResizeHandlers(widget, id);
+      }
+
+      const imgEl = widget.querySelector('img');
+      if (gifWidgetObjectURLs.has(id)) {
+        URL.revokeObjectURL(gifWidgetObjectURLs.get(id));
+      }
+      const objectURL = URL.createObjectURL(blob);
+      gifWidgetObjectURLs.set(id, objectURL);
+
+      if (imgEl) {
+        imgEl.src = objectURL;
+        if (AppState.whiteFilterEnabled) imgEl.classList.add('remove-white-bg');
+        else imgEl.classList.remove('remove-white-bg');
+      }
+
+      if (transform) {
+        widget.style.left = `${transform.left}px`;
+        widget.style.top = `${transform.top}px`;
+        widget.style.width = `${transform.width}px`;
+        widget.style.height = `${transform.height}px`;
+      } else {
+        const offset = (container.children.length - 1) * 25;
+        widget.style.left = `${Math.min(window.innerWidth - 100, 40 + offset)}px`;
+        widget.style.top = `${Math.min(window.innerHeight - 100, 120 + offset)}px`;
+      }
+
+      if (isGifEditMode) {
+        widget.classList.add('edit-mode-active');
+        widget.querySelectorAll('.resize-handle, .delete-gif-btn').forEach(el => el.classList.remove('hidden'));
+      }
+    }
+
+    function applyWhiteFilterState() {
+      const allImgs = document.querySelectorAll('.gif-circle-widget img');
+      const toggleBtn = document.getElementById('toggleWhiteFilterBtn');
+      allImgs.forEach(img => {
+        if (AppState.whiteFilterEnabled) img.classList.add('remove-white-bg');
+        else img.classList.remove('remove-white-bg');
+      });
+      if (toggleBtn) {
+        toggleBtn.textContent = AppState.whiteFilterEnabled ? 'ON' : 'OFF';
+        toggleBtn.className = AppState.whiteFilterEnabled ? 'px-2.5 py-1 bg-white text-black font-pixel-heading text-[8px] pixel-btn' : 'px-2.5 py-1 bg-slate-800 text-slate-400 font-pixel-heading text-[8px] pixel-btn';
+      }
+    }
+
+    function setGifEditMode(enabled) {
+      isGifEditMode = enabled;
+      const floatingBar = document.getElementById('gifEditFloatingBar');
+      const overlayContainer = document.getElementById('gifOverlayContainer');
+      const modal = document.getElementById('settingsModal');
+
+      if (isGifEditMode) {
+        if (modal) modal.classList.add('hidden');
+        if (floatingBar) floatingBar.classList.remove('hidden');
+        if (overlayContainer) overlayContainer.classList.remove('pointer-events-none');
+      } else {
+        if (floatingBar) floatingBar.classList.add('hidden');
+        if (overlayContainer) overlayContainer.classList.add('pointer-events-none');
+      }
+
+      const widgets = document.querySelectorAll('.gif-circle-widget');
+      widgets.forEach(widget => {
+        const handles = widget.querySelectorAll('.resize-handle, .delete-gif-btn');
+        if (isGifEditMode) {
+          widget.classList.add('edit-mode-active');
+          handles.forEach(h => h.classList.remove('hidden'));
+        } else {
+          widget.classList.remove('edit-mode-active');
+          handles.forEach(h => h.classList.add('hidden'));
+        }
+      });
+    }
+
+    function initDragAndResizeHandlers(widget, id) {
+      const resizeHandle = widget.querySelector('.resize-handle');
+      let isDragging = false, isResizing = false;
+      let startX = 0, startY = 0, startLeft = 0, startTop = 0, startWidth = 0, startHeight = 0;
+
+      widget.addEventListener('pointerdown', (e) => {
+        if (!isGifEditMode || e.target.classList.contains('resize-handle') || e.target.classList.contains('delete-gif-btn')) return;
+        isDragging = true;
+        widget.setPointerCapture(e.pointerId);
+        const rect = widget.getBoundingClientRect();
+        startX = e.clientX;
+        startY = e.clientY;
+        startLeft = rect.left;
+        startTop = rect.top;
+        e.stopPropagation();
+      });
+
+      widget.addEventListener('pointermove', (e) => {
+        if (!isDragging || !isGifEditMode) return;
+        widget.style.left = `${startLeft + (e.clientX - startX)}px`;
+        widget.style.top = `${startTop + (e.clientY - startY)}px`;
+      });
+
+      widget.addEventListener('pointerup', async (e) => {
+        if (!isDragging) return;
+        isDragging = false;
+        widget.releasePointerCapture(e.pointerId);
+        const rect = widget.getBoundingClientRect();
+        await saveGifRecordToDB(id, undefined, { left: rect.left, top: rect.top, width: rect.width, height: rect.height });
+      });
+
+      if (resizeHandle) {
+        resizeHandle.addEventListener('pointerdown', (e) => {
+          if (!isGifEditMode) return;
+          isResizing = true;
+          resizeHandle.setPointerCapture(e.pointerId);
+          const rect = widget.getBoundingClientRect();
+          startX = e.clientX;
+          startY = e.clientY;
+          startWidth = rect.width;
+          startHeight = rect.height;
+          e.stopPropagation();
+        });
+
+        resizeHandle.addEventListener('pointermove', (e) => {
+          if (!isResizing || !isGifEditMode) return;
+          widget.style.width = `${Math.max(28, startWidth + (e.clientX - startX))}px`;
+          widget.style.height = `${Math.max(28, startHeight + (e.clientY - startY))}px`;
+        });
+
+        resizeHandle.addEventListener('pointerup', async (e) => {
+          if (!isResizing) return;
+          isResizing = false;
+          resizeHandle.releasePointerCapture(e.pointerId);
+          const rect = widget.getBoundingClientRect();
+          await saveGifRecordToDB(id, undefined, { left: rect.left, top: rect.top, width: rect.width, height: rect.height });
+        });
+      }
+    }
+
+    async function restoreAllGifWidgets() {
+      const records = await loadAllGifsFromDB();
+      const container = document.getElementById('gifOverlayContainer');
+      if (container) container.innerHTML = '';
+      records.forEach(r => {
+        if (r.blob) createOrUpdateGifWidget(r.id, r.blob, r.transform);
+      });
+      applyWhiteFilterState();
+    }
+
+    let currentBgURL = null;
+    async function applyCustomBackground(bgRecord) {
+      const bgContainer = document.getElementById('customBgContainer');
+      const bgImage = document.getElementById('bgImage');
+      const bgVideo = document.getElementById('bgVideo');
+
+      if (!bgRecord || !bgRecord.blob) {
+        if (bgContainer) bgContainer.classList.add('hidden');
+        if (bgImage) bgImage.classList.add('hidden');
+        if (bgVideo) {
+          bgVideo.classList.add('hidden');
+          bgVideo.pause();
+        }
+        if (currentBgURL) {
+          URL.revokeObjectURL(currentBgURL);
+          currentBgURL = null;
+        }
+        return;
+      }
+
+      if (currentBgURL) URL.revokeObjectURL(currentBgURL);
+      currentBgURL = URL.createObjectURL(bgRecord.blob);
+
+      bgContainer.classList.remove('hidden');
+      if (bgRecord.type === 'image') {
+        bgVideo.classList.add('hidden');
+        bgVideo.pause();
+        bgImage.src = currentBgURL;
+        bgImage.classList.remove('hidden');
+      } else if (bgRecord.type === 'video') {
+        bgImage.classList.add('hidden');
+        bgVideo.src = currentBgURL;
+        bgVideo.classList.remove('hidden');
+        if (IntroEngine.isFinished) {
+          bgVideo.play().catch(() => {});
+        } else {
+          bgVideo.pause();
+        }
+      }
+    }
+
+    let loadedVideoObjectURLs = [];
+    function playHomeVideo() {
+      const video = document.getElementById('promoVideo');
+      const bgVideo = document.getElementById('bgVideo');
+      const manualPlayBtn = document.getElementById('manualPlayBtn');
+
+      if (IntroEngine.isFinished) {
+        if (video) {
+          video.play().then(() => {
+            if (manualPlayBtn) manualPlayBtn.classList.add('hidden');
+          }).catch(() => {
+            if (manualPlayBtn) manualPlayBtn.classList.remove('hidden');
+          });
+        }
+        if (bgVideo && !bgVideo.classList.contains('hidden')) {
+          bgVideo.play().catch(() => {});
+        }
+      } else {
+        if (video) video.pause();
+        if (bgVideo) bgVideo.pause();
+      }
+    }
+
+    async function initAndroidVideoPlayer() {
+      const video = document.getElementById('promoVideo');
+      const manualPlayBtn = document.getElementById('manualPlayBtn');
+      const customVideoInput = document.getElementById('customVideoInput');
+      const videoHistorySelect = document.getElementById('videoHistorySelect');
+
+      if (!video) return;
+
+      video.muted = true;
+      video.setAttribute('muted', 'true');
+      video.setAttribute('playsinline', 'true');
+      video.pause();
+
+      const unlockAutoplay = () => {
+        if (IntroEngine.isFinished) {
+          playHomeVideo();
+        }
+        document.removeEventListener('touchstart', unlockAutoplay);
+        document.removeEventListener('click', unlockAutoplay);
+      };
+      document.addEventListener('touchstart', unlockAutoplay, { passive: true });
+      document.addEventListener('click', unlockAutoplay, { passive: true });
+
+      if (manualPlayBtn) {
+        manualPlayBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (IntroEngine.isFinished) {
+            video.play();
+            manualPlayBtn.classList.add('hidden');
+          }
+        });
+      }
+
+      const updateVideoHistoryDropdown = async () => {
+        const history = await getSavedVideosFromHistory();
+        if (history.length > 0 && videoHistorySelect) {
+          videoHistorySelect.classList.remove('hidden');
+          videoHistorySelect.innerHTML = '<option value="default">DEFAULT VIDEO</option>';
+          history.forEach(item => {
+            const opt = document.createElement('option');
+            opt.value = item.id;
+            opt.textContent = `${item.name} (${item.date})`;
+            videoHistorySelect.appendChild(opt);
+          });
+          const latestVideo = history[history.length - 1];
+          videoHistorySelect.value = latestVideo.id;
+          setVideoBlob(latestVideo.blob);
+        }
+      };
+
+      function setVideoBlob(blob) {
+        loadedVideoObjectURLs.forEach(url => URL.revokeObjectURL(url));
+        loadedVideoObjectURLs = [];
+        const objectURL = URL.createObjectURL(blob);
+        loadedVideoObjectURLs.push(objectURL);
+        video.src = objectURL;
+        video.muted = false;
+        if (IntroEngine.isFinished) {
+          playHomeVideo();
+        } else {
+          video.pause();
+        }
+      }
+
+      if (customVideoInput) {
+        customVideoInput.addEventListener('change', async (e) => {
+          const file = e.target.files[0];
+          if (file) {
+            await saveVideoToHistory(file);
+            await updateVideoHistoryDropdown();
+          }
+        });
+      }
+
+      if (videoHistorySelect) {
+        videoHistorySelect.addEventListener('change', async (e) => {
+          if (e.target.value === 'default') {
+            video.src = 'video.mp4';
+            video.muted = true;
+            if (IntroEngine.isFinished) playHomeVideo();
+            else video.pause();
+          } else {
+            const history = await getSavedVideosFromHistory();
+            const record = history.find(item => item.id == e.target.value);
+            if (record && record.blob) setVideoBlob(record.blob);
+          }
+        });
+      }
+
+      await updateVideoHistoryDropdown();
+    }
+
+    async function saveVideoToHistory(file) {
+      try {
+        const db = await openIndexedDB();
+        const tx = db.transaction('videoHistory', 'readwrite');
+        const store = tx.objectStore('videoHistory');
+        const videoRecord = {
+          name: file.name,
+          date: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+          blob: file
+        };
+        return new Promise((resolve) => {
+          const req = store.add(videoRecord);
+          tx.oncomplete = () => resolve(req.result);
+        });
+      } catch (err) { return null; }
+    }
+
+    async function getSavedVideosFromHistory() {
+      try {
+        const db = await openIndexedDB();
+        return new Promise((resolve) => {
+          const tx = db.transaction('videoHistory', 'readonly');
+          const req = tx.objectStore('videoHistory').getAll();
+          req.onsuccess = () => resolve(req.result || []);
+          req.onerror = () => resolve([]);
+        });
+      } catch (err) { return []; }
+    }
+
+    async function saveCustomBgToDB(file) {
+      try {
+        const db = await openIndexedDB();
+        const tx = db.transaction('customBgStore', 'readwrite');
+        tx.objectStore('customBgStore').put({
+          type: file.type.startsWith('video/') ? 'video' : 'image',
+          blob: file
+        }, 'currentBg');
+      } catch (err) {}
+    }
+
+    async function loadCustomBgFromDB() {
+      try {
+        const db = await openIndexedDB();
+        return new Promise((resolve) => {
+          const tx = db.transaction('customBgStore', 'readonly');
+          const req = tx.objectStore('customBgStore').get('currentBg');
+          req.onsuccess = () => resolve(req.result || null);
+          req.onerror = () => resolve(null);
+        });
+      } catch (err) { return null; }
+    }
+
+    async function clearCustomBgFromDB() {
+      try {
+        const db = await openIndexedDB();
+        const tx = db.transaction('customBgStore', 'readwrite');
+        tx.objectStore('customBgStore').delete('currentBg');
+      } catch (err) {}
+    }
+
+    /* --- HYPER RETRO AUDIO SYNTHESIS ENGINE --- */
+    class RetroAudioEngine {
+      constructor() {
+        this.ctx = null;
+        this.sfxEnabled = true;
+        this.volume = 0.18;
+        this.introMusicActive = false;
+        this.musicTimers = [];
+      }
+      init() {
+        if (!this.ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          this.ctx = new AudioCtx();
+        }
+        if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+      }
+      playSFX(type) {
+        if (!this.sfxEnabled) return;
+        this.init();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        if (type === 'click') {
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(600, now);
+          osc.frequency.exponentialRampToValueAtTime(200, now + 0.05);
+          gain.gain.setValueAtTime(this.volume, now);
+          gain.gain.linearRampToValueAtTime(0.01, now + 0.05);
+          osc.start(now);
+          osc.stop(now + 0.05);
+        } else if (type === 'pop') {
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(220, now);
+          osc.frequency.exponentialRampToValueAtTime(880, now + 0.08);
+          gain.gain.setValueAtTime(this.volume * 1.5, now);
+          gain.gain.linearRampToValueAtTime(0.01, now + 0.08);
+          osc.start(now);
+          osc.stop(now + 0.08);
+        } else if (type === 'upload') {
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(523.25, now);
+          osc.frequency.setValueAtTime(1046.50, now + 0.18);
+          gain.gain.setValueAtTime(this.volume, now);
+          gain.gain.linearRampToValueAtTime(0.01, now + 0.28);
+          osc.start(now);
+          osc.stop(now + 0.28);
+        }
+      }
+
+      playPinkPantherHyperIntro() {
+        if (!this.sfxEnabled) return;
+        this.init();
+        if (!this.ctx) return;
+        this.stopIntroMusic();
+        this.introMusicActive = true;
+
+        const startTime = this.ctx.currentTime + 0.05;
+        const tempoBPM = 148;
+        const beatDuration = 60 / tempoBPM;
+
+        const N = {
+          E2: 82.41, F2: 87.31, Fs2: 92.50, G2: 98.00, Ab2: 103.83, B3: 246.94,
+          C4: 261.63, Cs4: 277.18, D4: 293.66, Ds4: 311.13, E4: 329.63, Fs4: 369.99,
+          G4: 392.00, C5: 523.25, B4: 493.88, Bb4: 466.16, A4: 440.00, G5: 783.99, E5: 659.25
+        };
+
+        const bassNotes = [
+          { note: N.E2, dur: 0.25, time: 0 },
+          { note: N.Fs2, dur: 0.25, time: 0.5 },
+          { note: N.G2, dur: 0.25, time: 1.0 },
+          { note: N.Ab2, dur: 0.25, time: 1.5 },
+          { note: N.E2, dur: 0.25, time: 2.0 },
+          { note: N.Fs2, dur: 0.25, time: 2.5 },
+          { note: N.G2, dur: 0.25, time: 3.0 },
+          { note: N.Ab2, dur: 0.25, time: 3.5 },
+          { note: N.E2, dur: 0.35, time: 4.0 },
+          { note: N.G2, dur: 0.35, time: 4.5 },
+          { note: N.E2, dur: 0.35, time: 5.0 },
+          { note: N.C4, dur: 0.50, time: 5.5 },
+          { note: N.E2, dur: 0.35, time: 6.5 },
+          { note: N.G2, dur: 0.35, time: 7.5 },
+          { note: N.C4, dur: 0.50, time: 8.5 }
+        ];
+
+        const leadMelody = [
+          { note: N.Ds4, dur: 0.18, time: 0.2 },
+          { note: N.E4, dur: 0.35, time: 0.4 },
+          { note: N.Fs4, dur: 0.18, time: 0.8 },
+          { note: N.G4, dur: 0.40, time: 1.0 },
+          { note: N.Ds4, dur: 0.15, time: 1.5 },
+          { note: N.E4, dur: 0.25, time: 1.7 },
+          { note: N.Fs4, dur: 0.15, time: 2.0 },
+          { note: N.G4, dur: 0.25, time: 2.2 },
+          { note: N.C5, dur: 0.30, time: 2.5 },
+          { note: N.B4, dur: 0.40, time: 2.8 },
+          { note: N.E4, dur: 0.15, time: 3.3 },
+          { note: N.G4, dur: 0.15, time: 3.5 },
+          { note: N.C5, dur: 0.25, time: 3.7 },
+          { note: N.B4, dur: 0.30, time: 4.0 },
+          { note: N.Bb4, dur: 0.20, time: 4.35 },
+          { note: N.A4, dur: 0.20, time: 4.55 },
+          { note: N.G4, dur: 0.30, time: 4.8 },
+          { note: N.E5, dur: 0.40, time: 5.2 },
+          { note: N.G5, dur: 0.60, time: 5.6 },
+          { note: N.C5, dur: 0.40, time: 6.5 },
+          { note: N.E5, dur: 0.60, time: 7.5 },
+          { note: N.G5, dur: 0.80, time: 8.5 }
+        ];
+
+        bassNotes.forEach(b => {
+          const timer = setTimeout(() => {
+            if (!this.introMusicActive) return;
+            this.triggerSynthNote(b.note, 'triangle', b.dur * beatDuration, 0.22);
+            this.triggerNoiseBeat(0.06);
+          }, b.time * beatDuration * 1000);
+          this.musicTimers.push(timer);
+        });
+
+        leadMelody.forEach(m => {
+          const timer = setTimeout(() => {
+            if (!this.introMusicActive) return;
+            this.triggerSynthNote(m.note, 'square', m.dur * beatDuration, 0.16);
+          }, m.time * beatDuration * 1000);
+          this.musicTimers.push(timer);
+        });
+      }
+
+      triggerSynthNote(freq, type, duration, vol) {
+        if (!this.ctx || !this.sfxEnabled) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, now);
+        gain.gain.setValueAtTime(vol * this.volume * 5, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + duration);
+      }
+
+      triggerNoiseBeat(duration) {
+        if (!this.ctx || !this.sfxEnabled) return;
+        const now = this.ctx.currentTime;
+        const bufferSize = this.ctx.sampleRate * duration;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = Math.random() * 2 - 1;
+        }
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+        noise.connect(gain);
+        gain.connect(this.ctx.destination);
+        noise.start(now);
+      }
+
+      stopIntroMusic() {
+        this.introMusicActive = false;
+        this.musicTimers.forEach(t => clearTimeout(t));
+        this.musicTimers = [];
+      }
+    }
+
+    const audio = new RetroAudioEngine();
+
+    /* --- EXCITING 10-SECOND HYPER PIXEL INTRO CONTROLLER --- */
+    const IntroEngine = {
+      overlay: document.getElementById('introOverlay'),
+      loadingStage: document.getElementById('introLoadingStage'),
+      animStage: document.getElementById('introAnimStage'),
+      progressBar: document.getElementById('introProgressBar'),
+      progressPercent: document.getElementById('introProgressPercent'),
+      skipBtn: document.getElementById('skipIntroBtn'),
+      welcomeBox: document.getElementById('introWelcomeBox'),
+      rainbowWelcome: document.getElementById('introRainbowWelcome'),
+      subtitleBox: document.getElementById('introSubtitleBox'),
+      isFinished: false,
+      animTimers: [],
+
+      init() {
+        if (this.skipBtn) {
+          this.skipBtn.addEventListener('click', () => this.finishAndDismiss());
+        }
+
+        const handleFirstUserGesture = () => {
+          audio.init();
+          document.removeEventListener('touchstart', handleFirstUserGesture);
+          document.removeEventListener('click', handleFirstUserGesture);
+        };
+        document.addEventListener('touchstart', handleFirstUserGesture, { passive: true });
+        document.addEventListener('click', handleFirstUserGesture, { passive: true });
+      },
+
+      startIntroSequence() {
+        this.isFinished = false;
+        if (this.skipBtn) this.skipBtn.classList.remove('hidden');
+        if (this.loadingStage) this.loadingStage.classList.remove('hidden');
+        if (this.animStage) this.animStage.classList.add('hidden');
+
+        // Stage 1: Progress Loading Bar (3 Seconds)
+        const startTime = Date.now();
+        const duration = 3000;
+
+        const updateProgress = () => {
+          if (this.isFinished) return;
+          const elapsed = Date.now() - startTime;
+          const progress = Math.min(100, Math.floor((elapsed / duration) * 100));
+
+          if (this.progressBar) this.progressBar.style.width = `${progress}%`;
+          if (this.progressPercent) this.progressPercent.textContent = `${progress}%`;
+
+          if (progress < 100) {
+            requestAnimationFrame(updateProgress);
+          } else {
+            setTimeout(() => this.startPixelAnimationStage(), 200);
+          }
+        };
+
+        requestAnimationFrame(updateProgress);
+      },
+
+      startPixelAnimationStage() {
+        if (this.isFinished) return;
+        if (this.loadingStage) this.loadingStage.classList.add('hidden');
+        if (this.animStage) this.animStage.classList.remove('hidden');
+
+        audio.playPinkPantherHyperIntro();
+
+        // Setup Rainbow Waving "WELCOME TO" Text
+        const welcomeText = "WELCOME TO";
+        if (this.rainbowWelcome) {
+          this.rainbowWelcome.innerHTML = '';
+          welcomeText.split('').forEach((char, index) => {
+            const span = document.createElement('span');
+            span.className = 'rainbow-wave-char';
+            span.textContent = char === ' ' ? '\u00A0' : char;
+            span.style.animationDelay = `${index * 0.12}s`;
+            this.rainbowWelcome.appendChild(span);
+          });
+        }
+
+        const bgColors = ['#ff007f', '#00f0ff', '#ffe600', '#39ff14', '#9000ff', '#111118', '#000000'];
+        const flashBgColor = (colorIndex) => {
+          if (this.overlay) {
+            this.overlay.style.backgroundColor = bgColors[colorIndex % bgColors.length];
+          }
+        };
+
+        const letters = ['J', 'O', 'E', 'L'];
+
+        letters.forEach(char => {
+          const el = document.getElementById(`letter-${char}`);
+          if (el) el.className = 'joel-letter-anim';
+        });
+
+        // PHASE 1: Sequential 3D Spin & Zoom Drops
+        letters.forEach((char, i) => {
+          const timer = setTimeout(() => {
+            if (this.isFinished) return;
+            const el = document.getElementById(`letter-${char}`);
+            if (el) el.classList.add('joel-letter-spin');
+            audio.playSFX('pop');
+            flashBgColor(i);
+          }, 300 + (i * 500));
+          this.animTimers.push(timer);
+        });
+
+        // PHASE 2: Rainbow WELCOME Drop + Chromatic Glitch Wave
+        const glitchTimer = setTimeout(() => {
+          if (this.isFinished) return;
+          if (this.welcomeBox) {
+            this.welcomeBox.classList.remove('opacity-0', '-translate-y-4');
+            this.welcomeBox.classList.add('opacity-100', 'translate-y-0');
+          }
+          letters.forEach(char => {
+            const el = document.getElementById(`letter-${char}`);
+            if (el) el.classList.add('joel-letter-glitch');
+          });
+          flashBgColor(4);
+          audio.playSFX('click');
+        }, 2600);
+        this.animTimers.push(glitchTimer);
+
+        // PHASE 3: Subtitle Jump
+        const subtitleTimer = setTimeout(() => {
+          if (this.isFinished) return;
+          if (this.subtitleBox) {
+            this.subtitleBox.classList.remove('opacity-0');
+            this.subtitleBox.classList.add('opacity-100');
+          }
+          flashBgColor(0);
+          audio.playSFX('pop');
+        }, 4800);
+        this.animTimers.push(subtitleTimer);
+
+        // PHASE 4: Float Physics Bounce Wave
+        const floatTimer = setTimeout(() => {
+          if (this.isFinished) return;
+          letters.forEach(char => {
+            const el = document.getElementById(`letter-${char}`);
+            if (el) {
+              el.classList.remove('joel-letter-glitch');
+              el.classList.add('joel-letter-float');
+            }
+          });
+          flashBgColor(3);
+        }, 7200);
+        this.animTimers.push(floatTimer);
+
+        // Final Fade Out
+        const completeTimer = setTimeout(() => {
+          if (this.isFinished) return;
+          if (this.overlay) this.overlay.style.backgroundColor = '#000000';
+          this.finishAndDismiss();
+        }, 13000);
+        this.animTimers.push(completeTimer);
+      },
+
+      finishAndDismiss() {
+        if (this.isFinished) return;
+        this.isFinished = true;
+        audio.stopIntroMusic();
+        this.animTimers.forEach(t => clearTimeout(t));
+
+        if (this.overlay) {
+          this.overlay.style.opacity = '0';
+          setTimeout(() => {
+            this.overlay.classList.add('hidden');
+            playHomeVideo();
+          }, 600);
+        } else {
+          playHomeVideo();
+        }
+      },
+
+      resetAndReplay() {
+        this.isFinished = false;
+        this.animTimers.forEach(t => clearTimeout(t));
+
+        const video = document.getElementById('promoVideo');
+        const bgVideo = document.getElementById('bgVideo');
+        if (video) video.pause();
+        if (bgVideo) bgVideo.pause();
+
+        if (this.overlay) {
+          this.overlay.style.opacity = '1';
+          this.overlay.style.backgroundColor = '#000000';
+          this.overlay.classList.remove('hidden');
+        }
+        if (this.animStage) this.animStage.classList.add('hidden');
+        if (this.loadingStage) this.loadingStage.classList.add('hidden');
+
+        ['J', 'O', 'E', 'L'].forEach(char => {
+          const el = document.getElementById(`letter-${char}`);
+          if (el) el.className = 'joel-letter-anim';
+        });
+
+        if (this.welcomeBox) this.welcomeBox.classList.add('opacity-0', '-translate-y-4');
+        if (this.subtitleBox) this.subtitleBox.classList.add('opacity-0');
+
+        this.startIntroSequence();
+      }
+    };
+
+    const AppState = {
+      followersMap: new Map(),
+      followingMap: new Map(),
+      notFollowingBack: [],
+      iDontFollowBack: [],
+      mutual: [],
+      activeTab: 'notFollowingBack',
+      searchQuery: '',
+      sortBy: 'alpha-asc',
+      whiteFilterEnabled: true
+    };
+
+    const DOM = {
+      dropzone: document.getElementById('dropzone'),
+      fileInput: document.getElementById('fileInput'),
+      uploadSection: document.getElementById('uploadSection'),
+      loadingSection: document.getElementById('loadingSection'),
+      errorSection: document.getElementById('errorSection'),
+      dashboardSection: document.getElementById('dashboardSection'),
+      loadingTitle: document.getElementById('loadingTitle'),
+      loadingSubtitle: document.getElementById('loadingSubtitle'),
+      errorMessage: document.getElementById('errorMessage'),
+      errorTryAgainBtn: document.getElementById('errorTryAgainBtn'),
+      openSettingsBtn: document.getElementById('openSettingsBtn'),
+      closeSettingsBtn: document.getElementById('closeSettingsBtn'),
+      settingsModal: document.getElementById('settingsModal'),
+      modalReplayIntroBtn: document.getElementById('modalReplayIntroBtn'),
+      modalSfxBtn: document.getElementById('modalSfxBtn'),
+      modalResetBtn: document.getElementById('modalResetBtn'),
+      modalSfxText: document.getElementById('modalSfxText'),
+      customBgInput: document.getElementById('customBgInput'),
+      resetBgBtn: document.getElementById('resetBgBtn'),
+      clearAllGifsBtn: document.getElementById('clearAllGifsBtn'),
+      enterGifEditModeBtn: document.getElementById('enterGifEditModeBtn'),
+      finishGifEditBtn: document.getElementById('finishGifEditBtn'),
+      toggleWhiteFilterBtn: document.getElementById('toggleWhiteFilterBtn'),
+      multiGifInput: document.getElementById('multiGifInput'),
+      metricFollowers: document.getElementById('metricFollowers'),
+      metricFollowing: document.getElementById('metricFollowing'),
+      metricNotFollowingBack: document.getElementById('metricNotFollowingBack'),
+      metricIDontFollowBack: document.getElementById('metricIDontFollowBack'),
+      metricMutual: document.getElementById('metricMutual'),
+      countTabNotFollowingBack: document.getElementById('countTabNotFollowingBack'),
+      countTabIDontFollowBack: document.getElementById('countTabIDontFollowBack'),
+      countTabMutual: document.getElementById('countTabMutual'),
+      countTabFollowing: document.getElementById('countTabFollowing'),
+      countTabFollowers: document.getElementById('countTabFollowers'),
+      tabGroup: document.getElementById('tabGroup'),
+      searchInput: document.getElementById('searchInput'),
+      sortSelect: document.getElementById('sortSelect'),
+      copyUsernamesBtn: document.getElementById('copyUsernamesBtn'),
+      copyBtnText: document.getElementById('copyBtnText'),
+      exportCsvBtn: document.getElementById('exportCsvBtn'),
+      resultsList: document.getElementById('resultsList'),
+      emptyResultsState: document.getElementById('emptyResultsState'),
+      resultsCountSummary: document.getElementById('resultsCountSummary')
+    };
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      lucide.createIcons();
+      IntroEngine.init();
+      IntroEngine.startIntroSequence();
+      attachEventListeners();
+      await initAndroidVideoPlayer();
+      startAmbientVideoGlowEngine();
+
+      const savedBg = await loadCustomBgFromDB();
+      if (savedBg) await applyCustomBackground(savedBg);
+
+      await restoreSavedJSONState();
+      await restoreAllGifWidgets();
+    });
+
+    async function restoreSavedJSONState() {
+      const savedState = await loadParsedStateFromDB();
+      const session = await loadFullUISessionSnapshot();
+
+      if (savedState && (savedState.followers?.length > 0 || savedState.following?.length > 0)) {
+        AppState.followersMap.clear();
+        AppState.followingMap.clear();
+
+        savedState.followers.forEach(user => AppState.followersMap.set(user.username.toLowerCase(), user));
+        savedState.following.forEach(user => AppState.followingMap.set(user.username.toLowerCase(), user));
+
+        if (session) {
+          if (session.activeTab) AppState.activeTab = session.activeTab;
+          if (session.searchQuery) {
+            AppState.searchQuery = session.searchQuery;
+            DOM.searchInput.value = session.searchQuery;
+          }
+          if (session.sortBy) {
+            AppState.sortBy = session.sortBy;
+            DOM.sortSelect.value = session.sortBy;
+          }
+        }
+        computeRelationships(false);
+      }
+    }
+
+    function attachEventListeners() {
+      DOM.openSettingsBtn.addEventListener('click', () => DOM.settingsModal.classList.remove('hidden'));
+      DOM.closeSettingsBtn.addEventListener('click', () => DOM.settingsModal.classList.add('hidden'));
+
+      if (DOM.modalReplayIntroBtn) {
+        DOM.modalReplayIntroBtn.addEventListener('click', () => {
+          DOM.settingsModal.classList.add('hidden');
+          IntroEngine.resetAndReplay();
+        });
+      }
+
+      DOM.modalSfxBtn.addEventListener('click', () => {
+        audio.sfxEnabled = !audio.sfxEnabled;
+        DOM.modalSfxText.textContent = `SFX: ${audio.sfxEnabled ? 'ON' : 'OFF'}`;
+        if (audio.sfxEnabled) audio.playSFX('click');
+      });
+
+      DOM.modalResetBtn.addEventListener('click', async () => {
+        await resetAppInternal(true);
+        DOM.settingsModal.classList.add('hidden');
+      });
+
+      if (DOM.toggleWhiteFilterBtn) {
+        DOM.toggleWhiteFilterBtn.addEventListener('click', () => {
+          AppState.whiteFilterEnabled = !AppState.whiteFilterEnabled;
+          applyWhiteFilterState();
+          saveFullUISessionSnapshot();
+        });
+      }
+
+      DOM.customBgInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          await saveCustomBgToDB(file);
+          await applyCustomBackground({
+            type: file.type.startsWith('video/') ? 'video' : 'image',
+            blob: file
+          });
+        }
+      });
+
+      DOM.resetBgBtn.addEventListener('click', async () => {
+        await clearCustomBgFromDB();
+        await applyCustomBackground(null);
+      });
+
+      if (DOM.enterGifEditModeBtn) DOM.enterGifEditModeBtn.addEventListener('click', () => setGifEditMode(true));
+      if (DOM.finishGifEditBtn) DOM.finishGifEditBtn.addEventListener('click', () => setGifEditMode(false));
+
+      if (DOM.multiGifInput) {
+        DOM.multiGifInput.addEventListener('change', async (e) => {
+          const files = Array.from(e.target.files);
+          if (files.length === 0) return;
+
+          for (const file of files) {
+            const uniqueId = 'gif_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+            await saveGifRecordToDB(uniqueId, file);
+            createOrUpdateGifWidget(uniqueId, file);
+          }
+          DOM.multiGifInput.value = '';
+          DOM.settingsModal.classList.add('hidden');
+          setGifEditMode(true);
+        });
+      }
+
+      if (DOM.clearAllGifsBtn) {
+        DOM.clearAllGifsBtn.addEventListener('click', async () => {
+          await clearAllGifsFromDB();
+          document.getElementById('gifOverlayContainer').innerHTML = '';
+          gifWidgetObjectURLs.forEach(url => URL.revokeObjectURL(url));
+          gifWidgetObjectURLs.clear();
+        });
+      }
+
+      DOM.dropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        DOM.dropzone.classList.add('border-white');
+      });
+      DOM.dropzone.addEventListener('dragleave', () => DOM.dropzone.classList.remove('border-white'));
+      DOM.dropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        DOM.dropzone.classList.remove('border-white');
+        if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
+      });
+
+      DOM.fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) handleFiles(e.target.files);
+      });
+
+      DOM.tabGroup.addEventListener('click', (e) => {
+        const btn = e.target.closest('.tab-btn');
+        if (!btn) return;
+        audio.playSFX('click');
+        switchTab(btn.getAttribute('data-tab'));
+      });
+
+      DOM.searchInput.addEventListener('input', (e) => {
+        AppState.searchQuery = e.target.value.toLowerCase().trim();
+        renderResults();
+      });
+
+      DOM.sortSelect.addEventListener('change', (e) => {
+        AppState.sortBy = e.target.value;
+        renderResults();
+      });
+
+      DOM.copyUsernamesBtn.addEventListener('click', copyDisplayedUsernames);
+      DOM.exportCsvBtn.addEventListener('click', exportToCSV);
+      DOM.errorTryAgainBtn.addEventListener('click', () => resetAppInternal(true));
+    }
+
+    async function handleFiles(fileList) {
+      showLoading("UNPACKING DATA...", "Processing files");
+      const files = Array.from(fileList);
+
+      try {
+        let jsonFilesMap = new Map();
+        const zipFile = files.find(f => f.name.endsWith('.zip'));
+
+        if (zipFile) {
+          const zip = new JSZip();
+          const contents = await zip.loadAsync(zipFile);
+          for (const [filename, fileObj] of Object.entries(contents.files)) {
+            if (!fileObj.dir && filename.endsWith('.json')) {
+              const text = await fileObj.async('string');
+              jsonFilesMap.set(filename.split('/').pop(), JSON.parse(text));
+            }
+          }
+        } else {
+          for (const file of files) {
+            if (file.name.endsWith('.json')) {
+              jsonFilesMap.set(file.name, JSON.parse(await file.text()));
+            }
+          }
+        }
+
+        if (jsonFilesMap.size === 0) throw new Error("No valid JSON files found.");
+        parseInstagramJSONData(jsonFilesMap);
+      } catch (error) {
+        showError(error.message || "Error reading files.");
+      }
+    }
+
+    function parseInstagramJSONData(jsonFilesMap) {
+      AppState.followersMap.clear();
+      AppState.followingMap.clear();
+
+      for (const [fileName, data] of jsonFilesMap.entries()) {
+        if (fileName.toLowerCase().includes('follower')) extractUserEntries(data, AppState.followersMap);
+        if (fileName.toLowerCase().includes('following')) extractUserEntries(data, AppState.followingMap);
+      }
+      computeRelationships(true);
+    }
+
+    function extractUserEntries(jsonData, resultMap) {
+      if (!jsonData) return;
+      let items = Array.isArray(jsonData) ? jsonData : (jsonData.relationships_following || jsonData.relationships_followers || []);
+
+      items.forEach(item => {
+        let username = "", href = "", timestamp = null;
+        if (item.string_list_data && item.string_list_data.length > 0) {
+          const obj = item.string_list_data[0];
+          username = obj.value || item.title || "";
+          href = obj.href || `https://www.instagram.com/${username}`;
+          timestamp = obj.timestamp || null;
+        } else if (item.title) {
+          username = item.title;
+          href = `https://www.instagram.com/${username}`;
+        }
+
+        if (username) {
+          resultMap.set(username.trim().toLowerCase(), {
+            username: username.trim(),
+            href: href,
+            timestamp: timestamp ? Number(timestamp) : null
+          });
+        }
+      });
+    }
+
+    async function computeRelationships(saveToDB = true) {
+      AppState.notFollowingBack = [];
+      AppState.iDontFollowBack = [];
+      AppState.mutual = [];
+
+      AppState.followingMap.forEach((userObj, username) => {
+        if (!AppState.followersMap.has(username)) AppState.notFollowingBack.push(userObj);
+        else AppState.mutual.push(userObj);
+      });
+
+      AppState.followersMap.forEach((userObj, username) => {
+        if (!AppState.followingMap.has(username)) AppState.iDontFollowBack.push(userObj);
+      });
+
+      DOM.metricFollowers.textContent = AppState.followersMap.size.toLocaleString();
+      DOM.metricFollowing.textContent = AppState.followingMap.size.toLocaleString();
+      DOM.metricNotFollowingBack.textContent = AppState.notFollowingBack.length.toLocaleString();
+      DOM.metricIDontFollowBack.textContent = AppState.iDontFollowBack.length.toLocaleString();
+      DOM.metricMutual.textContent = AppState.mutual.length.toLocaleString();
+
+      DOM.countTabNotFollowingBack.textContent = AppState.notFollowingBack.length;
+      DOM.countTabIDontFollowBack.textContent = AppState.iDontFollowBack.length;
+      DOM.countTabMutual.textContent = AppState.mutual.length;
+      DOM.countTabFollowing.textContent = AppState.followingMap.size;
+      DOM.countTabFollowers.textContent = AppState.followersMap.size;
+
+      audio.playSFX('upload');
+      DOM.uploadSection.classList.add('hidden');
+      DOM.loadingSection.classList.add('hidden');
+      DOM.errorSection.classList.add('hidden');
+      DOM.dashboardSection.classList.remove('hidden');
+
+      if (saveToDB) {
+        await saveParsedStateToDB(Array.from(AppState.followersMap.values()), Array.from(AppState.followingMap.values()));
+      }
+      renderResults();
+    }
+
+    function switchTab(tabName) {
+      AppState.activeTab = tabName;
+      DOM.tabGroup.querySelectorAll('.tab-btn').forEach(btn => {
+        if (btn.getAttribute('data-tab') === tabName) btn.className = 'tab-btn px-3 py-2 bg-pixelPink text-black font-pixel-heading text-[10px] pixel-btn';
+        else btn.className = 'tab-btn px-3 py-2 bg-slate-900 text-slate-400 hover:text-white text-[10px] border border-slate-700 pixel-btn';
+      });
+      renderResults();
+    }
+
+    function getActiveList() {
+      switch (AppState.activeTab) {
+        case 'notFollowingBack': return AppState.notFollowingBack;
+        case 'iDontFollowBack': return AppState.iDontFollowBack;
+        case 'mutual': return AppState.mutual;
+        case 'following': return Array.from(AppState.followingMap.values());
+        case 'followers': return Array.from(AppState.followersMap.values());
+        default: return [];
+      }
+    }
+
+    function renderResults() {
+      let list = [...getActiveList()];
+
+      if (AppState.searchQuery) {
+        list = list.filter(item => item.username.toLowerCase().includes(AppState.searchQuery));
+      }
+
+      list.sort((a, b) => {
+        if (AppState.sortBy === 'alpha-asc') return a.username.localeCompare(b.username);
+        if (AppState.sortBy === 'alpha-desc') return b.username.localeCompare(a.username);
+        if (AppState.sortBy === 'time-desc') return (b.timestamp || 0) - (a.timestamp || 0);
+        if (AppState.sortBy === 'time-asc') return (a.timestamp || 0) - (b.timestamp || 0);
+        return 0;
+      });
+
+      DOM.resultsCountSummary.textContent = `Showing ${list.length.toLocaleString()} accounts`;
+      DOM.resultsList.innerHTML = '';
+
+      if (list.length === 0) {
+        DOM.emptyResultsState.classList.remove('hidden');
+        return;
+      } else DOM.emptyResultsState.classList.add('hidden');
+
+      const fragment = document.createDocumentFragment();
+      list.forEach((user) => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between p-3 hover:bg-slate-900/60 transition-colors border-b border-slate-900';
+        row.innerHTML = `
+          <div class="flex items-center space-x-3">
+            <div class="w-8 h-8 bg-black border border-white flex items-center justify-center font-pixel-heading text-xs text-white shrink-0">
+              ${user.username.charAt(0).toUpperCase()}
+            </div>
+            <a href="${user.href}" target="_blank" rel="noopener noreferrer" class="font-vt text-lg text-slate-100 hover:text-pixelPink">
+              @${user.username}
+            </a>
+          </div>
+          <a href="${user.href}" target="_blank" rel="noopener noreferrer" class="px-3 py-1 bg-slate-900 hover:bg-white hover:text-black text-xs font-pixel-heading text-[10px] text-slate-300 border border-slate-700 pixel-btn">
+            PROFILE
+          </a>
+        `;
+        fragment.appendChild(row);
+      });
+      DOM.resultsList.appendChild(fragment);
+      lucide.createIcons();
+    }
+
+    function copyDisplayedUsernames() {
+      const list = getActiveList();
+      if (list.length === 0) return;
+      navigator.clipboard.writeText(list.map(u => u.username).join('\n')).then(() => {
+        DOM.copyBtnText.textContent = 'COPIED!';
+        setTimeout(() => DOM.copyBtnText.textContent = 'COPY NAMES', 2000);
+      });
+    }
+
+    function exportToCSV() {
+      const list = getActiveList();
+      if (list.length === 0) return;
+      let csvContent = "data:text/csv;charset=utf-8,Username,Profile Link\n";
+      list.forEach(u => {
+        csvContent += `"${u.username}","${u.href}"\n`;
+      });
+      const link = document.createElement("a");
+      link.setAttribute("href", encodeURI(csvContent));
+      link.setAttribute("download", `${AppState.activeTab}_users.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function showLoading(title, subtitle) {
+      DOM.loadingTitle.textContent = title;
+      DOM.loadingSubtitle.textContent = subtitle;
+      DOM.uploadSection.classList.add('hidden');
+      DOM.loadingSection.classList.remove('hidden');
+    }
+
+    function showError(message) {
+      DOM.uploadSection.classList.add('hidden');
+      DOM.loadingSection.classList.add('hidden');
+      DOM.errorSection.classList.remove('hidden');
+      DOM.errorMessage.textContent = message;
+    }
+
+    async function resetAppInternal(clearDB = false) {
+      if (clearDB) await clearParsedStateFromDB();
+      AppState.followersMap.clear();
+      AppState.followingMap.clear();
+      DOM.dashboardSection.classList.add('hidden');
+      DOM.uploadSection.classList.remove('hidden');
+    }
+  </script>
+</body>
+</html>
