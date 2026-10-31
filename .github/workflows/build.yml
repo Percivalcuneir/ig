@@ -1,0 +1,83 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get the code
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Copy the app files into www
+        run: |
+          mkdir -p www
+          rsync -a \
+            --exclude='.git' --exclude='.github' --exclude='node_modules' \
+            --exclude='android' --exclude='www' --exclude='*.py' \
+            --exclude='package*.json' --exclude='capacitor.config.*' \
+            ./ www/
+
+      - name: Save the libraries and fonts inside the app (offline support)
+        run: |
+          set -e
+          mkdir -p www/libs/fonts
+          curl -sSfL https://cdn.tailwindcss.com -o www/libs/tailwind.js
+          curl -sSfL https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js -o www/libs/jszip.min.js
+          curl -sSfL https://unpkg.com/lucide@latest -o www/libs/lucide.min.js
+          curl -sSfL -A "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36" \
+            "https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" -o www/libs/fonts.css
+          for url in $(grep -o 'https://fonts.gstatic.com[^)]*' www/libs/fonts.css); do
+            name=$(basename "$url")
+            curl -sSfL "$url" -o "www/libs/fonts/$name"
+            sed -i "s|$url|fonts/$name|g" www/libs/fonts.css
+          done
+          sed -i 's|https://cdn.tailwindcss.com|libs/tailwind.js|' www/index.html
+          sed -i 's|https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js|libs/jszip.min.js|' www/index.html
+          sed -i 's|https://unpkg.com/lucide@latest|libs/lucide.min.js|' www/index.html
+          sed -i 's|https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap|libs/fonts.css|' www/index.html
+          grep -n "libs/" www/index.html
+
+      - name: Install Capacitor
+        run: |
+          npm init -y
+          npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6
+
+      - name: Create the Android project
+        run: |
+          npx cap init "Unfollower Tracker" "com.joel.unfollowertracker" --web-dir=www
+          npx cap add android
+          npx cap sync android
+
+      - name: Set the app icon
+        run: |
+          mkdir -p assets
+          cp logo.png assets/icon-only.png
+          npm install @capacitor/assets
+          npx capacitor-assets generate --android --iconBackgroundColor '#375786' --iconBackgroundColorDark '#375786'
+
+      - name: Build the APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload the APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: UnfollowerTracker-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
